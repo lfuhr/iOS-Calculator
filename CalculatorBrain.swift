@@ -8,23 +8,21 @@
 
 import Foundation
 
-struct CalculatorBrain {    
+struct CalculatorBrain {
     
-    private var accumulator: Double?
+    private var accumulator: (numerical: Double, visual: String)?
     
     init() {
         setOperand(0)
     }
     
     private struct PendingBinaryOperation {
-        let function: (Double, Double) -> Double
-        let firstOperand: Double
-        var visualFirstOperand: String
-        var visualOperator: String
+        let function: (numerical: (Double, Double) -> Double, visual: String)
+        let firstOperand: (numerical: Double, visual: String)
         
         func perform(numerical secondOperand: Double, visual visualSecondOperand: String) -> (Double, String) {
-            let numericalResult = function(firstOperand, secondOperand)
-            let visualResult = "\(visualFirstOperand) \(visualOperator) \(visualSecondOperand)"
+            let numericalResult = function.numerical(firstOperand.numerical, secondOperand)
+            let visualResult = "\(firstOperand.visual) \(function.visual) \(visualSecondOperand)"
             return (numericalResult, visualResult)
         }
     }
@@ -35,14 +33,12 @@ struct CalculatorBrain {
         get {  return pendingBinaryOperation != nil }
     }
     
-    private var visualAccumulator: String = ""
-    
     var description: String {
         get {
             if let pendingBinaryOperation = pendingBinaryOperation {
-                return "\(pendingBinaryOperation.visualFirstOperand) \(pendingBinaryOperation.visualOperator) \(visualAccumulator) ..."
+                return "\(pendingBinaryOperation.firstOperand.visual) \(pendingBinaryOperation.function.visual) \(accumulator?.visual ?? "") ..."
             } else {
-                return visualAccumulator + " ="
+                return accumulator!.visual + " ="
             }
         }
     }
@@ -69,9 +65,7 @@ struct CalculatorBrain {
     
     private mutating func performPendingBinaryOperation() {
         if resultIsPending && accumulator != nil {
-            let r = pendingBinaryOperation!.perform(numerical: accumulator!, visual: visualAccumulator)
-            accumulator = r.0
-            visualAccumulator = r.1
+            accumulator = pendingBinaryOperation!.perform(numerical: accumulator!.numerical, visual: accumulator!.visual)
             pendingBinaryOperation = nil
             
         }
@@ -84,9 +78,9 @@ struct CalculatorBrain {
             case .constant(let value):
                 setOperand(value, displaying: symbol)
             case .unaryOperation(let function):
-                if let a = accumulator {
-                    accumulator = function(a)
-                    visualAccumulator = symbol + "( " + visualAccumulator + " )"
+                if accumulator != nil {
+                    accumulator?.numerical = function(accumulator!.numerical)
+                    accumulator?.visual = symbol + "( " + accumulator!.visual + " )"
                 }
             case .binaryOperation(let function):
                 if accumulator != nil {
@@ -96,9 +90,8 @@ struct CalculatorBrain {
                     }
                     
                     pendingBinaryOperation = PendingBinaryOperation(
-                        function: function,  firstOperand: accumulator!,
-                        visualFirstOperand: visualAccumulator,   visualOperator: symbol)
-                    visualAccumulator = ""
+                        function: (function, symbol), firstOperand: accumulator!)
+
                 }
                 accumulator = nil
             case .equals:
@@ -109,16 +102,12 @@ struct CalculatorBrain {
     
     mutating func setOperand(_ operand: Double, displaying symbol: String? = nil) {
         let visualOperand = symbol ?? operand.clean
-        accumulator = operand
-        if !resultIsPending {
-             visualAccumulator = ""
-        }
-        visualAccumulator = visualOperand
+        accumulator = (operand, visualOperand)
     }
     
     var result: Double? {
         get {
-            return accumulator
+            return accumulator?.numerical
         }
     }
 }
