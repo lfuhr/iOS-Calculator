@@ -14,7 +14,7 @@ extension Double {
     }
 }
 
-class ViewController: UIViewController {
+class CalculatorViewController: UIViewController {
     
     @IBOutlet weak var display: UILabel!
     var userIsInTheMiddleOfTyping = false
