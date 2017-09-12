@@ -9,7 +9,7 @@
 import UIKit
 
 extension Double {
-    var clean: String {
+    var description: String { // override
         return self.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", self) : String(self)
     }
 }
@@ -17,16 +17,17 @@ extension Double {
 class CalculatorViewController: UIViewController {
     
     @IBOutlet weak var display: UILabel!
-    var userIsInTheMiddleOfTyping = false
-    private var brain = CalculatorBrain()
     @IBOutlet weak var calcMethod: UITextView!
     
-    var displayValue: Double {
+    private var userIsInTheMiddleOfTyping = false
+    private var brain = CalculatorBrain()
+    
+    private var displayValue: Double {
         get {
             return Double(display.text!)!
         }
         set {
-            display.text = newValue.clean
+            display.text = newValue.description
         }
     }
     
@@ -34,10 +35,7 @@ class CalculatorViewController: UIViewController {
         let digit = sender.currentTitle!
         
         if userIsInTheMiddleOfTyping {
-            let maybenewDisplaytext = display.text! + digit
-            if Double(maybenewDisplaytext) != nil {
-                display.text = maybenewDisplaytext
-            }
+            display.text = display.text! + digit
         }
         else {
             display.text = digit == "." ?  "0." : digit
@@ -49,14 +47,11 @@ class CalculatorViewController: UIViewController {
         
         if userIsInTheMiddleOfTyping {
             brain.setOperand(displayValue)
-            userIsInTheMiddleOfTyping = false
         }
         
+        userIsInTheMiddleOfTyping = false
         brain.performOperation(sender.currentTitle!)
-            
-        if let result = brain.result {
-            displayValue = result
-        }
+        displayValue = brain.result ?? displayValue
         calcMethod.text = brain.description
     }
     

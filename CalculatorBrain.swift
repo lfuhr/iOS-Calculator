@@ -11,6 +11,7 @@ import Foundation
 struct CalculatorBrain {
     
     private var accumulator: (numerical: Double, visual: String)?
+    var result: Double? { return accumulator?.numerical}
     
     init() {
         setOperand(0)
@@ -20,10 +21,14 @@ struct CalculatorBrain {
         let function: (numerical: (Double, Double) -> Double, visual: String)
         let firstOperand: (numerical: Double, visual: String)
         
-        func perform(numerical secondOperand: Double, visual visualSecondOperand: String) -> (Double, String) {
-            let numericalResult = function.numerical(firstOperand.numerical, secondOperand)
-            let visualResult = "\(firstOperand.visual) \(function.visual) \(visualSecondOperand)"
-            return (numericalResult, visualResult)
+        func perform(with accumulator: (Double, String)?) -> (Double, String)? {
+            if let (numericalSecondOperand, visualSecondOperand) = accumulator {
+                let numericalResult = function.numerical(firstOperand.numerical, numericalSecondOperand)
+                let visualResult = "\(firstOperand.visual) \(function.visual) \(visualSecondOperand)"
+                return (numericalResult, visualResult)
+            } else {
+                return nil
+            }
         }
     }
     
@@ -43,71 +48,63 @@ struct CalculatorBrain {
         }
     }
     
-    private enum Operation {
-        case constant(Double)
-        case unaryOperation((Double) -> Double)
-        case binaryOperation((Double, Double) -> Double)
-        case equals
+    mutating func setOperand(_ operand: Double, displaying symbol: String? = nil) {
+        let visualOperand = symbol ?? operand.description // Can be overridden
+        accumulator = (operand, visualOperand)
     }
     
-    private var operations: Dictionary<String,Operation> = [
-        "π" : Operation.constant(Double.pi),
-        "e" : Operation.constant(M_E),
-        "√" : Operation.unaryOperation(sqrt),
-        "cos" : Operation.unaryOperation(cos),
-        "±" : Operation.unaryOperation( - ),
-        "×" : Operation.binaryOperation( * ),
-        "-" : Operation.binaryOperation( - ),
-        "÷" : Operation.binaryOperation( / ),
-        "+" : Operation.binaryOperation( + ),
-        "=" : Operation.equals
-    ]
-    
-    private mutating func performPendingBinaryOperation() {
-        if resultIsPending && accumulator != nil {
-            accumulator = pendingBinaryOperation!.perform(numerical: accumulator!.numerical, visual: accumulator!.visual)
-            pendingBinaryOperation = nil
-            
-        }
-    }
     
     mutating func performOperation(_ symbol: String) {
         
+        enum Operation {
+            case constant(Double)
+            case unaryOperation((Double) -> Double)
+            case binaryOperation((Double, Double) -> Double)
+            case equals
+        }
+        
+        var operations: Dictionary<String,Operation> = [
+            "π" : Operation.constant(Double.pi),
+            "e" : Operation.constant(M_E),
+            "√" : Operation.unaryOperation(sqrt),
+            "sin" : Operation.unaryOperation(sin),
+            "cos" : Operation.unaryOperation(cos),
+            "tan" : Operation.unaryOperation(tan),
+            "^" : Operation.binaryOperation(pow),
+            "±" : Operation.unaryOperation( - ),
+            "×" : Operation.binaryOperation( * ),
+            "-" : Operation.binaryOperation( - ),
+            "÷" : Operation.binaryOperation( / ),
+            "+" : Operation.binaryOperation( + ),
+            "=" : Operation.equals
+        ]
+        
+        var changeSymbol = [ "±": "-"]
+        
+        func performPendingOperation() { accumulator = pendingBinaryOperation?.perform(with: accumulator) ?? accumulator }
+        
         if let operation = operations[symbol] {
+            let symbol = changeSymbol[symbol] ?? symbol
+            
             switch operation {
             case .constant(let value):
                 setOperand(value, displaying: symbol)
             case .unaryOperation(let function):
                 if accumulator != nil {
                     accumulator?.numerical = function(accumulator!.numerical)
-                    accumulator?.visual = symbol + "( " + accumulator!.visual + " )"
+                    accumulator?.visual = symbol + " ( " + accumulator!.visual + " )"
                 }
             case .binaryOperation(let function):
-                if accumulator != nil {
-                    
-                    if resultIsPending {
-                        performPendingBinaryOperation()
-                    }
-                    
+                performPendingOperation()
+                if let accumulator = accumulator {
                     pendingBinaryOperation = PendingBinaryOperation(
-                        function: (function, symbol), firstOperand: accumulator!)
-
+                        function: (function, symbol), firstOperand: accumulator)
                 }
                 accumulator = nil
             case .equals:
-                performPendingBinaryOperation()
+                performPendingOperation()
+                pendingBinaryOperation = nil
             }
-        }
-    }
-    
-    mutating func setOperand(_ operand: Double, displaying symbol: String? = nil) {
-        let visualOperand = symbol ?? operand.clean
-        accumulator = (operand, visualOperand)
-    }
-    
-    var result: Double? {
-        get {
-            return accumulator?.numerical
         }
     }
 }
