@@ -19,7 +19,7 @@ struct CalculatorBrain {
         if !formula.isEmpty { formula.removeLast() }
     }
     
-    func evaluate(using variables: Dictionary<String,Double> = [:]) -> (result: Double?, isPending: Bool, description: String) {
+    func evaluate(using variables: Dictionary<String,Double>? = nil) -> (result: Double?, isPending: Bool, description: String) {
         
         struct PendingBinaryOperation {
             let perform: (Double) -> Double
@@ -29,13 +29,13 @@ struct CalculatorBrain {
                 return (self.perform(secondArg.numerical), self.describe(secondArg.visual))
             }
         }
+        
         var pendingBinaryOperation: PendingBinaryOperation?
         var resultIsPending : Bool { return pendingBinaryOperation != nil }
         
         var accumulator: (numerical: Double, visual: String)?
         
         for operation in formula {
-            
             if let acc = accumulator { // Calculator has an argument to perform an operation
                 
                 switch operation {
@@ -44,7 +44,7 @@ struct CalculatorBrain {
                 case .binaryOperation(let function, let printer):
                     accumulator = pendingBinaryOperation?.eval(with: acc) ?? acc
                     let acc = accumulator! // update
-                    pendingBinaryOperation = PendingBinaryOperation(
+                    pendingBinaryOperation = PendingBinaryOperation( // safe only what is needed
                         perform: { function(acc.numerical, $0) }, describe: { printer(acc.visual, $0) })
                     accumulator = nil
                 case .equals:
@@ -55,17 +55,15 @@ struct CalculatorBrain {
                 }
             } else { // Calculator needs an argument
                 
-                switch operation {
-                case .constant(let value, let symbol):
-                    accumulator = (value, symbol)
-                case .symbol(let symbol):
-                    accumulator = (variables[symbol] ?? 0, symbol)
-                default:
+                if case .constant(let value, let symbol) = operation {
+                    accumulator = (value ?? variables?[symbol] ?? 0, symbol)
+                } else {
                     assert(false)
                 }
             }
         }
         
+        // How much meaning one single line can have
         let description = pendingBinaryOperation?.describe("...") ?? accumulator?.visual.appending(" =") ?? ""
         return (accumulator?.numerical, resultIsPending, description)
     }
@@ -80,21 +78,21 @@ struct CalculatorBrain {
         return evaluate().description
     }
     
-    mutating func setOperand(_ operand: Double?, named symbol: String? = nil) {
-        if !evaluate().isPending { formula = []}
-        if let operand = operand {
-            formula.append(Operation.constant(operand, operand.description))
-        } else {
-            formula.append(Operation.symbol(symbol!))
+    mutating func setOperand(_ operand: Double? = nil, named symbol: String? = nil) {
+        switch formula.last! { // This switch is ugly, but if-case only works for one case
+        case .constant, .equals:
+            formula = []
+        default:
+            break
         }
+        formula.append(Operation.constant(operand, symbol ?? operand!.description))
     }
     
     private enum Operation {
-        case constant(Double, String)
+        case constant(Double?, String)
         case unaryOperation((Double) -> Double, (String) -> String )
         case binaryOperation((Double, Double) -> Double, (String, String) -> String )
         case equals
-        case symbol(String)
     }
     
     private var operations: Dictionary<String,Operation> = [
@@ -119,7 +117,7 @@ struct CalculatorBrain {
         switch operations[symbol]! {
         case .constant(let numerical, let visual):
             setOperand(numerical, named: visual)
-        case .binaryOperation:
+        case .binaryOperation, .equals: // Can replace binary operations
             if case .binaryOperation = formula.last! { undo() }
             fallthrough
         default:
